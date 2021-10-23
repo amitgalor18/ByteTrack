@@ -15,7 +15,7 @@ class MOTDataset(Dataset):
 
     def __init__(
         self,
-        data_dir=None,
+        data_dir='/content/drive/MyDrive/MOT-TAU/DATASET/MOT16',
         json_file="train_half.json",
         name="train",
         img_size=(608, 1088),
