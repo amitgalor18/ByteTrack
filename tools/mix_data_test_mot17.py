@@ -16,7 +16,7 @@ ln -s ../ETHZ ethz_train
 cd ..
 """
 
-mot_json = json.load(open('datasets/mot/annotations/train_half.json','r'))
+mot_json = json.load(open('/content/drive/MyDrive/MOT-TAU/DATASET/MOT16/annotations/train_half.json','r')) #change to wanted dataset annotation path
 
 img_list = list()
 for img in mot_json['images']:
