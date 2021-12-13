@@ -23,6 +23,10 @@ class STrack(BaseTrack):
         self.score = score
         self.tracklet_len = 0
 
+        # initiate previous location as first location
+        self.tlwh_previous = np.asarray(tlwh, dtype=np.float) 
+        self.tlwh_detection = np.asarray(tlwh, dtype=np.float) #TODO: delete after checking that previous works
+
     def predict(self):
         mean_state = self.mean.copy()
         if self.state != TrackState.Tracked:
@@ -86,6 +90,10 @@ class STrack(BaseTrack):
         self.is_activated = True
 
         self.score = new_track.score
+
+        #update the previous location
+        self.tlwh_previous = self.tlwh
+        self.tlwh_detection = new_tlwh # TODO: delete after checking previous works
 
     @property
     # @jit(nopython=True)
