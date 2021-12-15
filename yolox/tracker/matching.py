@@ -79,22 +79,16 @@ def velocity_distance(tracks, detections):
         velocity_norm = np.linalg.norm(track_velocity)
                 
         for idet, det in detections:
-        tlbr_det = det.tlbr
-        detection_velocity = tlbr_det[:2]-tlbr[:2]
-        if velocity_norm==0:
-            #avoid division by 0
-            velocity_cost[itrack, idet] = np.linalg.norm(track_velocity-detection_velocity)
-        else:
-            velocity_cost[itrack, idet]=np.linalg.norm((track_velocity-detection_velocity)/velocity_norm)
+            tlbr_det = det.tlbr
+            detection_velocity = tlbr_det[:2]-tlbr[:2]
+            if velocity_norm==0:
+                #avoid division by 0
+                velocity_cost[itrack, idet] = np.linalg.norm(track_velocity-detection_velocity)
+            else:
+                velocity_cost[itrack, idet]=np.linalg.norm((track_velocity-detection_velocity)/velocity_norm)
 
     return velocity_cost
 
-
-        atlbrs = [track.tlbr for track in tracks]
-        atlbrs_prev = [track.tlbr_previous for track in tracks]
-        btlbrs = [track.tlbr for track in detections]
-
-        track_velocity = 0
 
 def iou_distance(atracks, btracks):
     """
