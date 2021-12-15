@@ -24,7 +24,8 @@ class STrack(BaseTrack):
         self.tracklet_len = 0
 
         # initiate previous location as first location
-        self.tlwh_previous = np.asarray(tlwh, dtype=np.float) 
+        self.tlwh_previous = np.asarray(tlwh, dtype=np.float)
+        self.tlbr_previous = self.tlwh_to_tlbr(self.tlwh_previous) 
         self.tlwh_detection = np.asarray(tlwh, dtype=np.float) #TODO: delete after checking that previous works
 
     def predict(self):
@@ -93,6 +94,7 @@ class STrack(BaseTrack):
 
         #update the previous location
         self.tlwh_previous = self.tlwh
+        self.tlbr_previous = self.tlbr
         self.tlwh_detection = new_tlwh # TODO: delete after checking previous works
 
     @property

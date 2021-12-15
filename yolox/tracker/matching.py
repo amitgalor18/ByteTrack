@@ -69,6 +69,32 @@ def ious(atlbrs, btlbrs):
 
     return ious
 
+def velocity_distance(tracks, detections):
+    "Compute distance based on instant velocity (based on 2 frame locations)"
+    velocity_cost = np.ones((len(tracks),len(detections)), dtype=np.float)
+    for itrack, track in tracks:
+        tlbr = track.tlbr
+        tlbr_prev = track.tlbr_previous
+        track_velocity = tlbr[:2]-tlbr_prev[:2]
+        velocity_norm = np.linalg.norm(track_velocity)
+                
+        for idet, det in detections:
+        tlbr_det = det.tlbr
+        detection_velocity = tlbr_det[:2]-tlbr[:2]
+        if velocity_norm==0:
+            #avoid division by 0
+            velocity_cost[itrack, idet] = np.linalg.norm(track_velocity-detection_velocity)
+        else:
+            velocity_cost[itrack, idet]=np.linalg.norm((track_velocity-detection_velocity)/velocity_norm)
+
+    return velocity_cost
+
+
+        atlbrs = [track.tlbr for track in tracks]
+        atlbrs_prev = [track.tlbr_previous for track in tracks]
+        btlbrs = [track.tlbr for track in detections]
+
+        track_velocity = 0
 
 def iou_distance(atracks, btracks):
     """
