@@ -26,7 +26,6 @@ class STrack(BaseTrack):
         # initiate previous location as first location
         self.tlwh_previous = np.asarray(tlwh, dtype=np.float)
         self.tlbr_previous = self.tlwh_to_tlbr(self.tlwh_previous) 
-        self.tlwh_detection = np.asarray(tlwh, dtype=np.float) #TODO: delete after checking that previous works
 
     def predict(self):
         mean_state = self.mean.copy()
@@ -95,7 +94,6 @@ class STrack(BaseTrack):
         #update the previous location
         self.tlwh_previous = self.tlwh
         self.tlbr_previous = self.tlbr
-        self.tlwh_detection = new_tlwh # TODO: delete after checking previous works
 
     @property
     # @jit(nopython=True)
@@ -214,14 +212,16 @@ class BYTETracker(object):
         strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
         STrack.multi_predict(strack_pool)
+        # velocity_cost = matching.velocity_distance(strack_pool, detections)
         dists = matching.iou_distance(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
-
+        velocity_matched = []
         for itracked, idet in matches:
             track = strack_pool[itracked]
             det = detections[idet]
+            velocity_matched.append(velocity_cost[itracked,idet])
             if track.state == TrackState.Tracked:
                 track.update(detections[idet], self.frame_id)
                 activated_starcks.append(track)
@@ -239,7 +239,9 @@ class BYTETracker(object):
             detections_second = []
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
-        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
+        velocity_cost = matching.velocity_distance(r_tracked_stracks, detections_second)
+        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5, velocity_cost=velocity_cost, velocity_thresh=10)
+        
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
             det = detections_second[idet]

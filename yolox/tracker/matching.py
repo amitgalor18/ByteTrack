@@ -36,14 +36,19 @@ def _indices_to_matches(cost_matrix, indices, thresh):
     return matches, unmatched_a, unmatched_b
 
 
-def linear_assignment(cost_matrix, thresh):
+def linear_assignment(cost_matrix, thresh, velocity_cost=None, velocity_thresh=None):
     if cost_matrix.size == 0:
         return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
     matches, unmatched_a, unmatched_b = [], [], []
     cost, x, y = lap.lapjv(cost_matrix, extend_cost=True, cost_limit=thresh)
     for ix, mx in enumerate(x):
         if mx >= 0:
-            matches.append([ix, mx])
+            if velocity_cost is None: # default case, as it was before the modification
+                matches.append([ix, mx])
+            else: # if v cost was entered, only add matches below v thresh
+                if velocity_cost[ix,mx]<velocity_thresh:
+                    matches.append([ix, mx])
+
     unmatched_a = np.where(x < 0)[0]
     unmatched_b = np.where(y < 0)[0]
     matches = np.asarray(matches)
@@ -72,20 +77,24 @@ def ious(atlbrs, btlbrs):
 def velocity_distance(tracks, detections):
     "Compute distance based on instant velocity (based on 2 frame locations)"
     velocity_cost = np.ones((len(tracks),len(detections)), dtype=np.float)
-    for itrack, track in tracks:
+    i=0
+    for track in tracks:
+        
         tlbr = track.tlbr
         tlbr_prev = track.tlbr_previous
         track_velocity = tlbr[:2]-tlbr_prev[:2]
         velocity_norm = np.linalg.norm(track_velocity)
-                
-        for idet, det in detections:
+        j=0    
+        for det in detections:
             tlbr_det = det.tlbr
             detection_velocity = tlbr_det[:2]-tlbr[:2]
             if velocity_norm==0:
                 #avoid division by 0
-                velocity_cost[itrack, idet] = np.linalg.norm(track_velocity-detection_velocity)
+                velocity_cost[i, j] = np.linalg.norm(track_velocity-detection_velocity)
             else:
-                velocity_cost[itrack, idet]=np.linalg.norm((track_velocity-detection_velocity)/velocity_norm)
+                velocity_cost[i, j]=np.linalg.norm((track_velocity-detection_velocity)/velocity_norm)
+            j+=1
+        i+=1
 
     return velocity_cost
 
