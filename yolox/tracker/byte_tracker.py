@@ -12,7 +12,7 @@ from .basetrack import BaseTrack, TrackState
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
-    def __init__(self, tlwh, score):
+    def __init__(self, tlwh, score,temp_feat=None, buffer_size=30):
 
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float)
@@ -22,6 +22,21 @@ class STrack(BaseTrack):
 
         self.score = score
         self.tracklet_len = 0
+
+        self.smooth_feat = None
+        self.update_features(temp_feat)
+        self.features = deque([], maxlen=buffer_size)
+        self.alpha = 0.9
+
+    def update_features(self, feat):
+        feat /= np.linalg.norm(feat)
+        self.curr_feat = feat
+        if self.smooth_feat is None:
+            self.smooth_feat = feat
+        else:
+            self.smooth_feat = self.alpha * self.smooth_feat + (1 - self.alpha) * feat
+        self.features.append(feat)
+        self.smooth_feat /= np.linalg.norm(self.smooth_feat)
 
     def predict(self):
         mean_state = self.mean.copy()
@@ -156,7 +171,7 @@ class BYTETracker(object):
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
 
-    def update(self, output_results, img_info, img_size):
+    def update(self, output_results, img_info, img_size, gt_predictations=None):
         self.frame_id += 1
         activated_starcks = []
         refind_stracks = []
@@ -170,7 +185,9 @@ class BYTETracker(object):
             output_results = output_results.cpu().numpy()
             scores = output_results[:, 4] * output_results[:, 5]
             bboxes = output_results[:, :4]  # x1y1x2y2
-        img_h, img_w = img_info[0], img_info[1]
+            embeddings = output_results[:, -self.args.emb_dim:]
+
+        img_h, img_w = img_info['height'], img_info['width']
         scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))
         bboxes /= scale
 
@@ -179,15 +196,21 @@ class BYTETracker(object):
         inds_high = scores < self.args.track_thresh
 
         inds_second = np.logical_and(inds_low, inds_high)
-        dets_second = bboxes[inds_second]
+        
         dets = bboxes[remain_inds]
         scores_keep = scores[remain_inds]
+        embeddings_high = embeddings[remain_inds]
+
+        dets_second = bboxes[inds_second]
         scores_second = scores[inds_second]
+        embeddings_second = embeddings[inds_second]
 
         if len(dets) > 0:
             '''Detections'''
-            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets, scores_keep)]
+            # detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
+            #               (tlbr, s) in zip(dets, scores_keep)]
+            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s, emb) for
+                          (tlbr, s, emb) in zip(dets, scores_keep, embeddings_high)] 
         else:
             detections = []
 
@@ -205,8 +228,11 @@ class BYTETracker(object):
         # Predict the current location with KF
         STrack.multi_predict(strack_pool)
         dists = matching.iou_distance(strack_pool, detections)
+        emb_dists = matching.embedding_distance(strack_pool, detections)
+
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
+        dists = matching.fuse_motion(self.kalman_filter, emb_dists, strack_pool, detections) #TODO: switch to iou if embedding seems worse, and move embedding to second iteration
         matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
 
         for itracked, idet in matches:
@@ -223,12 +249,16 @@ class BYTETracker(object):
         # association the untrack to the low score detections
         if len(dets_second) > 0:
             '''Detections'''
-            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
-                          (tlbr, s) in zip(dets_second, scores_second)]
+            # detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
+                        #   (tlbr, s) in zip(dets_second, scores_second)]
+            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s, emb) for
+                          (tlbr, s, emb) in zip(dets_second, scores_second, embeddings_second)]
         else:
             detections_second = []
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
+        emb_dists = matching.embedding_distance(r_tracked_stracks, detections_second)
+
         matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
         for itracked, idet in matches:
             track = r_tracked_stracks[itracked]
