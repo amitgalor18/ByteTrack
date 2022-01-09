@@ -258,6 +258,7 @@ class BYTETracker(object):
         r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
         dists = matching.iou_distance(r_tracked_stracks, detections_second)
         emb_dists = matching.embedding_distance(r_tracked_stracks, detections_second)
+        dists = matching.fuse_motion(self.kalman_filter, emb_dists, r_tracked_stracks, detections_second) #changed from iou to emb distance
 
         matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)
         for itracked, idet in matches:
